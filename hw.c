@@ -11,27 +11,34 @@
 #define HW_RIGHT	10
 #define Trig		28
 #define Echo		29
+#define TrigL		24
+#define EchoL		25
+#define TrigR		21
+#define EchoR		22
+#define Turn		6
+#define TurnLow		0.5
+
 #define SP 		500
 
 
-float disMeasure(void)
+float disMeasure(double Loca)
 {
   struct timeval tv1;
   struct timeval tv2;
   long start, stop;
   float dis;
 
-  digitalWrite(Trig, LOW);
+  digitalWrite(Loca, LOW);
   delayMicroseconds(2);
 
-  digitalWrite(Trig, HIGH);
+  digitalWrite(Loca, HIGH);
   delayMicroseconds(10);	  //发出超声波脉冲
-  digitalWrite(Trig, LOW);
-
-  while(!(digitalRead(Echo) == 1));
+  digitalWrite(Loca, LOW);
+  
+  while(!(digitalRead(Loca+1) == 1));
   gettimeofday(&tv1, NULL);		   //获取当前时间
 
-  while(!(digitalRead(Echo) == 0));
+  while(!(digitalRead(Loca+1) == 0));
   gettimeofday(&tv2, NULL);		   //获取当前时间
 
   start = tv1.tv_sec * 1000000 + tv1.tv_usec;   //微秒级的时间
@@ -62,7 +69,7 @@ void brake(int time)         //刹车，停车
 void left(int time)         //左转(左轮不动，右轮前进)
 {
     softPwmWrite(1,0); //左轮stop
-    softPwmWrite(4,0); 
+    softPwmWrite(4,SP); 
     softPwmWrite(5,SP); //右轮前进
     softPwmWrite(6,0); 
     delay(time * 100);
@@ -72,7 +79,7 @@ void right(int time)        //右转(右轮不动，左轮前进)
     softPwmWrite(1,SP); //左轮前进
     softPwmWrite(4,0); 
     softPwmWrite(5,0); //右轮stop
-    softPwmWrite(6,0); 
+    softPwmWrite(6,SP); 
     delay(time * 100);
 }
 
@@ -82,7 +89,7 @@ int main(int argc, char *argv[])
 {
     int SR;
     int SL;
-    float dis;
+    float disF,disL,disR;
     /*RPI*/
     wiringPiSetup();
     /*WiringPi GPIO*/
@@ -94,6 +101,10 @@ int main(int argc, char *argv[])
     pinMode(HW_RIGHT, INPUT);
     pinMode(Echo, INPUT);
     pinMode(Trig, OUTPUT);
+    pinMode(EchoL, INPUT);
+    pinMode(TrigL, OUTPUT);
+    pinMode(EchoR, INPUT);
+    pinMode(TrigR, OUTPUT);
     softPwmCreate(1,1,500);
     softPwmCreate(4,1,500);
     softPwmCreate(5,1,500);
@@ -104,36 +115,35 @@ while(1)
     //有信号为LOW  没有信号为HIGH
     SR = digitalRead(HW_RIGHT);
     SL = digitalRead(HW_LEFT);
-    dis = disMeasure();
-    printf("distance = %0.2f cm\n",dis);//输出当前超声波测得的距离
+    disF = disMeasure(Trig);
+    disL = disMeasure(TrigL);
+    disR = disMeasure(TrigR);
+    printf("distanceF = %0.2f cm\n",disF);//输出当前超声波测得的距离
+    printf("distanceL = %0.2f cm\n",disL);
+    printf("distanceR = %0.2f cm\n",disR);
 
-    if(dis<30&&dis>0.3){   //测得前方障碍的距离小于30cm时做出如下响应
-	if(SL == LOW){
-	    printf("SL..TurnRight\n");
+    if(disF<30&&disF>0.3){   //测得前方障碍的距离小于30cm时做出如下响应
+	if(disL<=disR){
+	    printf("TurnRight\n");
 	    brake(1);
-	    right(2);
+	    right(Turn);
 	}
-	else if(SR == LOW){
-	    printf("SR..TurnLeft\n");
-	    brake(1);
-	    left(4);
-	}
-	else{
+	else if(disL>disR){
 	    printf("TurnLeft\n");
 	    brake(1);
-	    left(2);
+	    left(Turn);
 	}
     }
     else{
 	if(SL == LOW){
 	    printf("SL...\n");
 	    brake(1);
-	    right(2);
+	    right(TurnLow);
 	}
 	else if(SR == LOW){
 	    printf("SR...\n");
 	    brake(1);
-	    left(2);
+	    left(TurnLow);
 	}
 	else{
 	    printf("RUN\n");
